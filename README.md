@@ -117,3 +117,203 @@ Focus on **3 high-ROI measures:**
 **ROI:** **10-60x in year 1**, continuing indefinitely
 
 ---
+
+## Technical Implementation
+
+### Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| **Data Exploration** | Python, Jupyter Notebook, pandas, matplotlib, seaborn |
+| **Database** | PostgreSQL, Docker |
+| **ETL Pipeline** | Python (SQLAlchemy, pandas) |
+| **Analysis** | SQL (CTEs, window functions, complex joins) |
+| **Visualization** | Power BI Desktop |
+
+### Project Architecture
+```
+┌─────────────────┐
+│  CMS Raw Data   │  (CSV files - 857 contracts, 42 measures)
+│   (Public API)  │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ ETL Pipeline    │  (Python + PostgreSQL)
+│ • Load to       │
+│   Staging       │
+│ • Transform     │
+│ • Normalize     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  PostgreSQL DB  │  (Normalized schema - 4 production tables)
+│ • contracts     │
+│ • measures      │
+│ • scores        │
+│ • metadata      │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  SQL Analysis   │  (Complex queries - prioritization logic)
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  Power BI       │  (Executive dashboard - 2 pages)
+│  Dashboard      │
+└─────────────────┘
+```
+
+### Database Schema
+
+**Normalized Design (3NF):**
+```sql
+-- Core production tables
+contracts (
+    contract_id PRIMARY KEY,
+    contract_name,
+    organization_type,
+    overall_star_rating,
+    year
+)
+
+measure_metadata (
+    measure_id PRIMARY KEY,
+    measure_name,
+    domain,
+    weight  -- 1.0, 1.5, 3.0, or 4.0
+)
+
+measure_scores (
+    contract_id REFERENCES contracts,
+    measure_id REFERENCES measure_metadata,
+    score,
+    year,
+    PRIMARY KEY (contract_id, measure_id, year)
+)
+```
+
+**Key Design Decisions:**
+- Staging tables for raw data landing (idempotent ETL)
+- Normalized star → long format (35,994 measure scores)
+- Indexed foreign keys for query performance
+- Data quality checks built into pipeline
+
+---
+
+## Key SQL Queries
+
+### Query 1: Identify Near-Bonus Plans
+```sql
+SELECT contract_id, contract_name, overall_star_rating
+FROM contracts
+WHERE overall_star_rating = 3.5
+ORDER BY contract_name;
+```
+**Result:** 141 plans identified
+
+### Query 2: Calculate Improvement Potential (Complex Analysis)
+```sql
+WITH plan_opportunities AS (
+    SELECT 
+        ms.measure_id,
+        mm.measure_name,
+        mm.weight,
+        AVG(ms.score) as avg_score,
+        COUNT(*) as num_plans_struggling
+    FROM measure_scores ms
+    JOIN measure_metadata mm ON ms.measure_id = mm.measure_id
+    JOIN contracts c ON TRIM(ms.contract_id) = TRIM(c.contract_id)
+    WHERE c.overall_star_rating = 3.5
+      AND ms.score IS NOT NULL
+      AND ms.score < 4.0
+    GROUP BY ms.measure_id, mm.measure_name, mm.weight
+)
+SELECT 
+    measure_id,
+    measure_name,
+    weight,
+    ROUND(avg_score, 2) as avg_score,
+    num_plans_struggling,
+    ROUND(weight * (4.0 - avg_score), 2) as improvement_potential
+FROM plan_opportunities
+ORDER BY improvement_potential DESC;
+```
+**Result:** Ranked 42 measures by ROI
+
+### Query 3: Plan-Specific Recommendations
+```sql
+SELECT 
+    c.contract_name,
+    ms.measure_id,
+    mm.measure_name,
+    ms.score as current_score,
+    mm.weight,
+    ROUND(mm.weight * (4.0 - ms.score), 2) as impact_if_improved_to_4,
+    CASE 
+        WHEN ms.score <= 2.0 THEN 'CRITICAL'
+        WHEN ms.score < 4.0 THEN 'HIGH'
+        ELSE 'MEDIUM'
+    END as priority
+FROM contracts c
+JOIN measure_scores ms ON TRIM(c.contract_id) = TRIM(ms.contract_id)
+JOIN measure_metadata mm ON ms.measure_id = mm.measure_id
+WHERE c.contract_id = 'H0907'  -- Specific plan
+  AND ms.score IS NOT NULL
+  AND ms.score < 4.0
+ORDER BY impact_if_improved_to_4 DESC;
+```
+**Result:** Top 10 priorities for individual plans
+
+---
+
+## Dashboard & Visualizations
+
+### Page 1: Industry Overview
+![Dashboard Page 1](images/dashboard_page1.png)
+
+**KPIs:**
+- 141 plans near bonus threshold
+- 3.42 average measure score
+- 91.31 total improvement potential
+
+**Visuals:**
+- Bar chart: Top 10 measures by improvement potential
+- Heat map table: All 42 measures with color-coded priorities
+
+### Page 2: Plan-Specific Deep Dive
+![Dashboard Page 2](images/dashboard_page2.png)
+
+**Interactive Features:**
+- Dropdown slicer to select any 3.5-star plan
+- KPIs: Plan's average score, number of low measures
+- Table: Weakest measures with prioritized recommendations
+- Comparison to industry benchmarks
+
+---
+
+## Project Structure
+```
+medicare_star_ratings/
+├── data/
+│   └── raw/                          # CMS CSV files (not in repo)
+├── sql/
+│   ├── 01_schema.sql                 # Database schema
+│   ├── 02_load_data.py               # ETL - Extract & Load
+│   ├── 03_transform.py               # ETL - Transform
+│   ├── 04_data_quality.py            # Validation checks
+│   ├── 05_update_weights.sql         # Business logic
+│   ├── 06_analysis_queries.sql       # Core SQL analysis
+│   └── 07_export_for_powerbi.py      # Data export
+├── powerbi_data/                     # Exported CSVs for Power BI
+├── images/                           # Dashboard screenshots
+├── Phase1_Data_Exploration.ipynb     # Jupyter notebook
+├── Medicare_Star_Ratings.pbix        # Power BI file
+└── README.md
+```
+
+---
+
