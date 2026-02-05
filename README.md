@@ -280,10 +280,6 @@ ORDER BY impact_if_improved_to_4 DESC;
 - 3.42 average measure score
 - 91.31 total improvement potential
 
-**Visuals:**
-- Bar chart: Top 10 measures by improvement potential
-- Heat map table: All 42 measures with color-coded priorities
-
 ### Page 2: Plan-Specific Deep Dive
 ![Dashboard Page 2](images/dashboard_page2.png)
 
@@ -316,4 +312,5 @@ medicare_star_ratings/
 ```
 
 ---
+
 
