@@ -295,7 +295,7 @@ ORDER BY impact_if_improved_to_4 DESC;
 ```
 medicare_star_ratings/
 ├── data/
-│   └── raw/                          # CMS CSV files (not in repo)
+│   └── raw/                          
 ├── sql/
 │   ├── 01_schema.sql                 # Database schema
 │   ├── 02_load_data.py               # ETL - Extract & Load
@@ -307,10 +307,10 @@ medicare_star_ratings/
 ├── powerbi_data/                     # Exported CSVs for Power BI
 ├── images/                           # Dashboard screenshots
 ├── Phase1_Data_Exploration.ipynb     # Jupyter notebook
-├── Medicare_Star_Ratings.pbix        # Power BI file
 └── README.md
 ```
 
 ---
+
 
 
